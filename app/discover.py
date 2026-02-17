@@ -30,7 +30,6 @@ def find_careers_link(html: str, base_url: str) -> str | None:
     soup = BeautifulSoup(html, "html.parser")
 
     # 1️⃣ Look for links in the page
-    candidates = []
     for a in soup.find_all("a", href=True):
         text = (a.get_text() or "").strip().lower()
         href = a["href"].strip()
@@ -79,7 +78,10 @@ def discover_for_company(row: dict) -> dict:
 
     result = {"notes": None, "careers_url": None, "ats_type": "unknown", "ats_board_url": None}
 
-    home = fetch_html(website)
+    try:
+        home = fetch_html(website)
+    except Exception as e:
+        return {"notes": f"Failed to fetch homepage: {e}"}
 
     # ATS might already be on homepage
     detected = detect_ats(home)
@@ -94,7 +96,12 @@ def discover_for_company(row: dict) -> dict:
 
     result["careers_url"] = careers_url
 
-    careers_html = fetch_html(careers_url)
+    try:
+        careers_html = fetch_html(careers_url)
+    except Exception as e:
+        result["notes"] = f"Careers page found but failed to fetch: {e}"
+        return result
+
     detected = detect_ats(careers_html)
 
     if not detected:
@@ -110,31 +117,36 @@ def discover_for_company(row: dict) -> dict:
 
     return result
 
-def run_discovery(limit: int = 20):
+def run_discovery(limit: int = 50):
+    # CRITICAL FIX: Only discover companies that HAVE website_url
     rows = (
         sb.table("companies")
         .select("*")
+        .not_.is_("website_url", "null")  # Only companies with websites
         .or_("ats_type.is.null,ats_type.eq.unknown,ats_board_url.is.null")
         .limit(limit)
         .execute()
         .data
     )
 
-    print(f"Discovering ATS for {len(rows)} companies...")
+    print(f"Discovering ATS for {len(rows)} companies (with websites)...\n")
 
     for row in rows:
-        print(f"\n→ {row.get('ticker','')} {row['name']}")
+        print(f"→ {row.get('ticker','')} {row['name']}")
         try:
             discovered = discover_for_company(row)
             update_company(row["id"], discovered)
-            print(f"   careers_url: {discovered.get('careers_url')}")
+            if discovered.get('careers_url'):
+                print(f"   careers_url: {discovered.get('careers_url')}")
             print(f"   ats_type: {discovered.get('ats_type')}")
-            print(f"   ats_board_url: {discovered.get('ats_board_url')}")
+            if discovered.get('ats_board_url'):
+                print(f"   ats_board_url: {discovered.get('ats_board_url')}")
             if discovered.get("notes"):
                 print(f"   notes: {discovered['notes']}")
         except Exception as e:
             update_company(row["id"], {"notes": f"Discovery error: {e}"})
             print(f"   ERROR: {e}")
+        print()
 
         time.sleep(1.0)  # be polite
 
