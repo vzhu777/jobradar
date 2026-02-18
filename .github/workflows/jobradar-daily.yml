@@ -30,7 +30,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install supabase-py python-dotenv requests beautifulsoup4 tenacity playwright
+          pip install supabase python-dotenv requests beautifulsoup4 tenacity playwright
           playwright install chromium
           playwright install-deps
       
