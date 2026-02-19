@@ -2,11 +2,11 @@ name: JobRadar Daily Scraper
 
 on:
   schedule:
-    # Runs at 9:00 AM Melbourne time (11:00 PM UTC previous day)
-    # GitHub Actions uses UTC, so 9 AM AEDT = 11 PM UTC
-    - cron: '0 23 * * *'
+    # Runs at 8:00 AM Melbourne time (AEDT = UTC+11)
+    # 8 AM AEDT = 9 PM UTC (21:00)
+    # GitHub Actions can have 5-15 min delay, so this should run ~8:00-8:15 AM
+    - cron: '0 21 * * *'
   
-  # Also allow manual trigger from GitHub UI
   workflow_dispatch:
 
 jobs:
