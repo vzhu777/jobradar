@@ -1,132 +1,129 @@
-# app/sources/seek.py
+# app/sources/seek_stealthy.py
 """
-Seek.com.au scraper using Playwright for browser automation.
-Uses headless browser to avoid API blocking.
+Stealthy Seek scraper using Playwright with anti-detection measures.
+Focus on quality senior tech roles only.
 """
-from __future__ import annotations
 import asyncio
+import random
 import hashlib
-import time
-import re
-from playwright.async_api import async_playwright
-from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
+
+# Senior tech role search terms
+SENIOR_TECH_SEARCHES = [
+    "Chief Information Officer",
+    "Chief Technology Officer", 
+    "Chief Digital Officer",
+    "Technology Director",
+    "IT Director",
+    "Head of Technology",
+    "Head of IT",
+    "General Manager Technology",
+]
+
+AUSTRALIAN_LOCATIONS = [
+    "All Australia",
+    "Melbourne VIC",
+    "Sydney NSW",
+    "Brisbane QLD",
+]
 
 
-async def scrape_seek_search(keywords: str, location: str = "All Australia", max_pages: int = 2) -> list[dict]:
+async def scrape_seek_search(page, search_term: str, location: str = "All Australia", max_pages: int = 2):
     """
-    Scrape Seek search results using Playwright.
-    
-    Args:
-        keywords: Search terms
-        location: Location filter
-        max_pages: Max pages to scrape
+    Scrape a single Seek search with stealth.
     """
     jobs = []
     
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        page = await browser.new_page()
-        
-        # Build search URL
-        base_url = f"https://www.seek.com.au/{keywords.lower().replace(' ', '-')}-jobs"
-        
-        for page_num in range(1, max_pages + 1):
-            url = f"{base_url}?page={page_num}" if page_num > 1 else base_url
+    # Build Seek URL
+    base_url = "https://www.seek.com.au"
+    keywords = search_term.replace(" ", "-").lower()
+    location_param = location.replace(" ", "-").lower()
+    
+    for page_num in range(1, max_pages + 1):
+        try:
+            url = f"{base_url}/{keywords}-jobs/in-{location_param}?page={page_num}"
+            print(f"    [Seek] Loading: {url}")
             
-            print(f"  [Seek] Fetching page {page_num} for '{keywords}'...")
+            # Navigate with realistic timing
+            await page.goto(url, wait_until="domcontentloaded", timeout=30000)
             
-            try:
-                await page.goto(url, wait_until="networkidle", timeout=30000)
-                await page.wait_for_timeout(2000)  # Let JS render
-                
-                html = await page.content()
-                soup = BeautifulSoup(html, "html.parser")
-                
-                # Find job cards (Seek uses article tags with data-job-id)
-                job_cards = soup.find_all("article", {"data-job-id": True})
-                
-                if not job_cards:
-                    print(f"  [Seek] No job cards found on page {page_num}")
-                    break
-                
-                for card in job_cards:
-                    try:
-                        job_id = card.get("data-job-id")
-                        
-                        # Title
-                        title_elem = card.find("a", {"data-automation": "jobTitle"})
-                        title = title_elem.get_text(strip=True) if title_elem else "Unknown"
-                        
-                        # Company
-                        company_elem = card.find("a", {"data-automation": "jobCompany"})
-                        company = company_elem.get_text(strip=True) if company_elem else "Unknown Company"
-                        
-                        # Location
-                        location_elem = card.find("a", {"data-automation": "jobLocation"})
-                        job_location = location_elem.get_text(strip=True) if location_elem else ""
-                        
-                        # Short description
-                        desc_elem = card.find("span", {"data-automation": "jobShortDescription"})
-                        description = desc_elem.get_text(strip=True) if desc_elem else ""
-                        
-                        # Salary
-                        salary_elem = card.find("span", {"data-automation": "jobSalary"})
-                        salary = salary_elem.get_text(strip=True) if salary_elem else ""
-                        
-                        # Work type
-                        work_type_elem = card.find("span", {"data-automation": "jobWorkType"})
-                        work_type = work_type_elem.get_text(strip=True) if work_type_elem else ""
-                        
-                        # Listing date
-                        date_elem = card.find("span", {"data-automation": "jobListingDate"})
-                        listing_date = date_elem.get_text(strip=True) if date_elem else ""
-                        
-                        # Build full description
-                        full_desc = description
-                        if work_type:
-                            full_desc += f"\n\nWork Type: {work_type}"
-                        if salary:
-                            full_desc += f"\nSalary: {salary}"
-                        
-                        jobs.append({
-                            "id": job_id,
-                            "title": title,
-                            "company": company,
-                            "location": job_location,
-                            "description": full_desc,
-                            "salary": salary,
-                            "work_type": work_type,
-                            "listing_date": listing_date,
-                        })
+            # Wait for job cards to load
+            await page.wait_for_selector('[data-automation="normalJob"]', timeout=10000)
+            
+            # Random human-like delay
+            await asyncio.sleep(random.uniform(2.0, 4.0))
+            
+            # Extract job cards
+            job_cards = await page.query_selector_all('[data-automation="normalJob"]')
+            print(f"    [Seek] Found {len(job_cards)} job cards on page {page_num}")
+            
+            for card in job_cards:
+                try:
+                    # Extract title
+                    title_elem = await card.query_selector('a[data-automation="jobTitle"]')
+                    title = await title_elem.inner_text() if title_elem else "Unknown"
                     
-                    except Exception as e:
-                        print(f"  [Seek] Error parsing job card: {e}")
-                        continue
-                
-                print(f"  [Seek] Found {len(job_cards)} jobs on page {page_num}")
-                
-            except Exception as e:
-                print(f"  [Seek] Error fetching page {page_num}: {e}")
-                break
+                    # Extract company
+                    company_elem = await card.query_selector('a[data-automation="jobCompany"]')
+                    company = await company_elem.inner_text() if company_elem else "Unknown Company"
+                    
+                    # Extract location
+                    location_elem = await card.query_selector('a[data-automation="jobLocation"]')
+                    job_location = await location_elem.inner_text() if location_elem else ""
+                    
+                    # Extract salary (if present)
+                    salary_elem = await card.query_selector('[data-automation="jobSalary"]')
+                    salary = await salary_elem.inner_text() if salary_elem else None
+                    
+                    # Extract job URL
+                    job_url = await title_elem.get_attribute('href') if title_elem else None
+                    if job_url and not job_url.startswith('http'):
+                        job_url = base_url + job_url
+                    
+                    # Extract job ID from URL
+                    job_id = job_url.split('/')[-1].split('?')[0] if job_url else None
+                    
+                    jobs.append({
+                        'id': job_id,
+                        'title': title.strip(),
+                        'company': company.strip(),
+                        'location': job_location.strip(),
+                        'salary': salary.strip() if salary else None,
+                        'url': job_url,
+                        'search_term': search_term,
+                    })
+                    
+                except Exception as e:
+                    print(f"      [Seek] Error parsing job card: {e}")
+                    continue
+            
+            # Human-like delay between pages
+            if page_num < max_pages:
+                await asyncio.sleep(random.uniform(3.0, 6.0))
         
-        await browser.close()
+        except PlaywrightTimeout:
+            print(f"    [Seek] Timeout loading page {page_num}")
+            break
+        except Exception as e:
+            print(f"    [Seek] Error on page {page_num}: {e}")
+            break
     
     return jobs
 
 
 def normalize_seek(job: dict) -> dict:
     """Normalize Seek job to our schema."""
-    job_id = str(job.get("id", ""))
-    title = job.get("title", "Unknown title")
-    company = job.get("company", "Unknown Company")
-    location = job.get("location", "")
-    description = job.get("description", "")
+    job_id = str(job.get('id', ''))
+    title = job.get('title', 'Unknown title')
+    company = job.get('company', 'Unknown Company')
+    location = job.get('location', '')
+    salary = job.get('salary', '')
+    job_url = job.get('url', '')
     
-    # URL
-    job_url = f"https://www.seek.com.au/job/{job_id}"
-    
-    # Posted date - convert relative dates like "2d ago" to None for now
-    listing_date = None  # Seek uses relative dates, hard to parse accurately
+    description = f"Seek job posting for {title}.\n"
+    if salary:
+        description += f"Salary: {salary}\n"
+    description += f"\nView full details at the link."
     
     content_hash = hashlib.sha256(
         f"seek|{company}|{title}|{location}|{job_url}".encode()
@@ -140,52 +137,80 @@ def normalize_seek(job: dict) -> dict:
         "description": description,
         "source": "seek",
         "source_job_id": job_id,
-        "posted_at": listing_date,
+        "posted_at": None,
         "content_hash": content_hash,
         "is_active": True,
     }
 
 
-def scrape_seek_senior_tech_roles(location: str = "All Australia") -> list[dict]:
+async def scrape_seek_senior_tech_async():
     """
-    Main entry point for Seek scraping.
-    Searches for multiple senior tech role keywords.
+    Main async function to scrape Seek for senior tech roles.
     """
-    # Simplified search terms that match Seek's URL structure
-    search_terms = [
-        "chief information officer",
-        "chief technology officer",
-        "chief digital officer",
-        "technology director",
-        "it director",
-        "head of technology",
-        "head of it",
-        "general manager technology",
-        "program director",
-        "transformation director",
-    ]
-    
     all_jobs = []
     seen_ids = set()
     
-    print(f"\n[Seek] Searching for {len(search_terms)} role types in {location}...")
-    
-    for term in search_terms:
-        jobs = asyncio.run(scrape_seek_search(term, location, max_pages=2))
+    async with async_playwright() as p:
+        # Launch browser with stealth settings
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                '--disable-blink-features=AutomationControlled',
+                '--disable-dev-shm-usage',
+                '--no-sandbox',
+            ]
+        )
         
-        # Deduplicate
-        for job in jobs:
-            job_id = job.get("id")
-            if job_id and job_id not in seen_ids:
-                seen_ids.add(job_id)
-                all_jobs.append(job)
+        # Create context with realistic settings
+        context = await browser.new_context(
+            viewport={'width': 1920, 'height': 1080},
+            user_agent='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            locale='en-AU',
+            timezone_id='Australia/Melbourne',
+        )
         
-        time.sleep(2.0)  # Be polite between searches
+        # Add stealth scripts
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        """)
+        
+        page = await context.new_page()
+        
+        print(f"\n[Seek] Searching for {len(SENIOR_TECH_SEARCHES)} senior tech roles...")
+        
+        for search_term in SENIOR_TECH_SEARCHES:
+            print(f"\n  [Seek] Search: {search_term}")
+            
+            # Try first with "All Australia"
+            jobs = await scrape_seek_search(page, search_term, "All Australia", max_pages=2)
+            
+            # Deduplicate
+            new_count = 0
+            for job in jobs:
+                job_id = job.get('id')
+                if job_id and job_id not in seen_ids:
+                    seen_ids.add(job_id)
+                    all_jobs.append(job)
+                    new_count += 1
+            
+            print(f"  [Seek] Found {new_count} new jobs for '{search_term}'")
+            
+            # Long delay between searches to avoid detection
+            await asyncio.sleep(random.uniform(8.0, 15.0))
+        
+        await browser.close()
     
-    print(f"[Seek] Total unique jobs found: {len(all_jobs)}")
-    
-    # Normalize all jobs
+    print(f"\n[Seek] Total unique jobs found: {len(all_jobs)}")
     return [normalize_seek(j) for j in all_jobs]
+
+
+def scrape_seek_senior_tech_roles():
+    """
+    Synchronous wrapper for the async scraper.
+    """
+    return asyncio.run(scrape_seek_senior_tech_async())
 
 
 if __name__ == "__main__":
@@ -195,5 +220,6 @@ if __name__ == "__main__":
     
     if jobs:
         print("\nSample jobs:")
-        for job in jobs[:5]:
-            print(f"  - {job['title']} at {job['company']} ({job['location']})")
+        for job in jobs[:10]:
+            salary_info = f" - {job.get('salary', 'No salary')}" if job.get('salary') else ""
+            print(f"  - {job['title']} at {job['company']} ({job['location']}){salary_info}")

@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobRadar Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #f5f5f7;
+            color: #1d1d1f;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background: white;
+            padding: 30px 0;
+            margin-bottom: 30px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            background: #f5f5f7;
+            padding: 15px 25px;
+            border-radius: 12px;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: 700;
+            color: #0066cc;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            color: #6e6e73;
+            margin-top: 5px;
+        }
+        
+        .filters {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .filter-row:last-child {
+            margin-bottom: 0;
+        }
+        
+        input, select {
+            padding: 10px 15px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 1em;
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        input:focus, select:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+        
+        .multi-select-container {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+        
+        .multi-select-label {
+            font-size: 0.9em;
+            color: #6e6e73;
+            margin-bottom: 5px;
+            display: block;
+        }
+        
+        .multi-select-box {
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
+            min-height: 45px;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .multi-select-box:hover {
+            border-color: #0066cc;
+        }
+        
+        .selected-items {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        
+        .selected-item {
+            background: #0066cc;
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .selected-item .remove {
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .multi-select-placeholder {
+            color: #86868b;
+        }
+        
+        .multi-select-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            margin-top: 5px;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .multi-select-dropdown.show {
+            display: block;
+        }
+        
+        .multi-select-section {
+            padding: 10px 15px;
+            background: #f5f5f7;
+            font-weight: 600;
+            font-size: 0.9em;
+            color: #6e6e73;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        
+        .multi-select-option {
+            padding: 10px 15px 10px 30px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .multi-select-option:hover {
+            background: #f5f5f7;
+        }
+        
+        .multi-select-option input[type="checkbox"] {
+            min-width: auto;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .toggle-switch {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 15px;
+            background: #f5f5f7;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        .toggle-switch input[type="checkbox"] {
+            min-width: auto;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+        }
+        
+        .toggle-switch label {
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 8px;
+            font-size: 1em;
+            cursor: pointer;
+            font-weight: 500;
+            min-width: 120px;
+        }
+        
+        button:hover {
+            background: #0055b3;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f7;
+            color: #1d1d1f;
+        }
+        
+        .btn-secondary:hover {
+            background: #e5e5e5;
+        }
+        
+        .jobs-grid {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .job-card {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e5e5;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .job-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .job-card.new {
+            border-left: 4px solid #34c759;
+        }
+        
+        .job-card.relevant {
+            border-left: 4px solid #ff9500;
+        }
+        
+        .job-card.new.relevant {
+            border-left: 4px solid #34c759;
+        }
+        
+        .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+        
+        .job-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 8px;
+        }
+        
+        .job-company {
+            color: #0066cc;
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+        
+        .job-salary {
+            color: #34c759;
+            font-weight: 600;
+            font-size: 1.1em;
+            margin-top: 8px;
+        }
+        
+        .job-meta {
+            display: flex;
+            gap: 20px;
+            color: #6e6e73;
+            font-size: 0.9em;
+            flex-wrap: wrap;
+        }
+        
+        .job-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .badge-new {
+            background: #34c759;
+            color: white;
+        }
+        
+        .badge-relevant {
+            background: #ff9500;
+            color: white;
+        }
+        
+        .badge-source {
+            background: #f5f5f7;
+            color: #6e6e73;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #6e6e73;
+            font-size: 1.2em;
+        }
+        
+        .error {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            color: #856404;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            overflow-y: auto;
+        }
+        
+        .modal-content {
+            background: white;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 40px;
+            border-radius: 12px;
+            position: relative;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 2em;
+            cursor: pointer;
+            color: #6e6e73;
+        }
+        
+        .modal-close:hover {
+            color: #1d1d1f;
+        }
+        
+        .job-description {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e5e5;
+            white-space: pre-wrap;
+            line-height: 1.8;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎯 JobRadar Dashboard</h1>
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-value" id="total-jobs">-</div>
+                    <div class="stat-label">Total Jobs</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="relevant-jobs">-</div>
+                    <div class="stat-label">Relevant Jobs</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="new-jobs">-</div>
+                    <div class="stat-label">New (7 days)</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="companies">-</div>
+                    <div class="stat-label">Companies</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value" id="filtered-count">-</div>
+                    <div class="stat-label">Filtered Results</div>
+                </div>
+            </div>
+        </header>
+        
+        <div class="filters">
+            <div class="filter-row">
+                <input type="text" id="search" placeholder="Search by title or keywords...">
+                <select id="recency-filter">
+                    <option value="">All Jobs</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30">Last 30 days</option>
+                </select>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="relevant-only" checked>
+                    <label for="relevant-only">Show Relevant Jobs Only</label>
+                </div>
+            </div>
+            <div class="filter-row">
+                <div class="multi-select-container" id="company-multi-select">
+                    <label class="multi-select-label">Companies</label>
+                    <div class="multi-select-box" onclick="toggleDropdown('company')">
+                        <div class="selected-items" id="company-selected">
+                            <span class="multi-select-placeholder">All Companies</span>
+                        </div>
+                    </div>
+                    <div class="multi-select-dropdown" id="company-dropdown"></div>
+                </div>
+                <div class="multi-select-container" id="location-multi-select">
+                    <label class="multi-select-label">States & Locations</label>
+                    <div class="multi-select-box" onclick="toggleDropdown('location')">
+                        <div class="selected-items" id="location-selected">
+                            <span class="multi-select-placeholder">All States</span>
+                        </div>
+                    </div>
+                    <div class="multi-select-dropdown" id="location-dropdown"></div>
+                </div>
+                <button onclick="clearFilters()" class="btn-secondary">Clear Filters</button>
+                <button onclick="loadJobs()">Refresh</button>
+            </div>
+        </div>
+        
+        <div class="jobs-grid" id="jobs-container">
+            <div class="loading">Loading jobs...</div>
+        </div>
+    </div>
+    
+    <div class="modal" id="job-modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        // REPLACE THESE WITH YOUR SUPABASE CREDENTIALS
+	const SUPABASE_URL = 'https://cvgdclbpgpuntooszlol.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN2Z2RjbGJwZ3B1bnRvb3N6bG9sIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MTEzNTg1NywiZXhwIjoyMDg2NzExODU3fQ.2nXeNwVbQYEHWhKXrm2eF9hFYY3T1rQuanPvk2uDYH4';
+        
+        
+        const { createClient } = supabase;
+        const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        let allJobs = [];
+        let selectedCompanies = [];
+        let selectedStates = [];
+        
+        // State mapping for Australian locations
+        const STATE_MAPPING = {
+            'VIC': ['melbourne', 'geelong', 'ballarat', 'bendigo', 'victoria', 'vic'],
+            'NSW': ['sydney', 'newcastle', 'wollongong', 'central coast', 'new south wales', 'nsw'],
+            'QLD': ['brisbane', 'gold coast', 'sunshine coast', 'cairns', 'townsville', 'queensland', 'qld'],
+            'WA': ['perth', 'fremantle', 'western australia', 'wa'],
+            'SA': ['adelaide', 'south australia', 'sa'],
+            'TAS': ['hobart', 'launceston', 'tasmania', 'tas'],
+            'ACT': ['canberra', 'act'],
+            'NT': ['darwin', 'northern territory', 'nt'],
+            'Remote': ['remote', 'work from home', 'wfh', 'australia']
+        };
+        
+        // Relevance keywords
+	const ROLE_KEYWORDS = [
+    		"chief information", "chief technology", "chief digital", "chief data", "chief innovation",
+    		"cio", "cto", "cdo", "cdao", "chief",
+    		"director", "program director", "programme director", "project director",
+    		"vice president", "vp technology", "vp engineering",
+    		"head of technology", "head of digital", "head of it", "head of data",
+    		"head of engineering", "head of transformation",
+    		"general manager", " gm ", "gm technology",
+    		"senior manager technology", "senior manager it",
+    		"senior program manager", "senior project manager",
+    		"principal engineer", "principal architect",
+    		"program manager", "programme manager",
+   		 "transformation", "technology", "digital", "enterprise architecture"
+	];
+
+        
+        const AU_LOCATIONS = [
+            "australia", "melbourne", "sydney", "brisbane", "perth", "adelaide",
+            "canberra", "remote", "au", "nsw", "vic", "qld", "wa", "sa", "act"
+        ];
+        
+        function getStateFromLocation(location) {
+            if (!location) return 'Unknown';
+            const loc = location.toLowerCase();
+            
+            for (const [state, keywords] of Object.entries(STATE_MAPPING)) {
+                if (keywords.some(keyword => loc.includes(keyword))) {
+                    return state;
+                }
+            }
+            
+            return 'Unknown';
+        }
+        
+        function extractSalary(description) {
+            if (!description) return null;
+            
+            const patterns = [
+                /\$[\d,]+k?(?:\s*-\s*\$?[\d,]+k?)?/gi,
+                /[\d,]+k\s*-\s*[\d,]+k/gi,
+                /salary[:\s]+\$?[\d,]+k?(?:\s*-\s*\$?[\d,]+k?)?/gi
+            ];
+            
+            for (const pattern of patterns) {
+                const match = description.match(pattern);
+                if (match) {
+                    return match[0].trim();
+                }
+            }
+            
+            return null;
+        }
+        
+        function isRelevant(job) {
+            const title = (job.title || "").toLowerCase();
+            const location = (job.location || "").toLowerCase();
+            
+            const titleMatch = ROLE_KEYWORDS.some(k => title.includes(k));
+            const locationMatch = AU_LOCATIONS.some(l => location.includes(l)) || location === "";
+            
+            return titleMatch && locationMatch;
+        }
+        
+        async function loadJobs() {
+            try {
+                const { data, error } = await client
+                    .from('jobs')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('created_at', { ascending: false });
+                
+                if (error) {
+                    console.error('Supabase error:', error);
+                    document.getElementById('jobs-container').innerHTML = 
+                        `<div class="error">
+                            <strong>Error loading jobs:</strong> ${error.message}<br>
+                            <small>Check your Supabase URL and API key.</small>
+                        </div>`;
+                    return;
+                }
+                
+                allJobs = data || [];
+                // Tag each job with relevance, state, and extract salary
+                allJobs.forEach(job => {
+                    job.isRelevant = isRelevant(job);
+                    job.salary = extractSalary(job.description);
+                    job.state = getStateFromLocation(job.location);
+                });
+                
+                updateStats();
+                populateMultiSelects();
+                filterJobs();
+            } catch (error) {
+                console.error('Error loading jobs:', error);
+                document.getElementById('jobs-container').innerHTML = 
+                    `<div class="error">
+                        <strong>Error:</strong> ${error.message}
+                    </div>`;
+            }
+        }
+        
+        function updateStats() {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            const newJobs = allJobs.filter(job => 
+                new Date(job.created_at) > sevenDaysAgo
+            );
+            
+            const relevantJobs = allJobs.filter(job => job.isRelevant);
+            const companies = new Set(allJobs.map(job => job.company));
+            
+            document.getElementById('total-jobs').textContent = allJobs.length;
+            document.getElementById('relevant-jobs').textContent = relevantJobs.length;
+            document.getElementById('new-jobs').textContent = newJobs.length;
+            document.getElementById('companies').textContent = companies.size;
+        }
+        
+        function populateMultiSelects() {
+            const companies = [...new Set(allJobs.map(j => j.company))].sort();
+            
+            // Group jobs by state
+            const jobsByState = {};
+            allJobs.forEach(job => {
+                if (!jobsByState[job.state]) {
+                    jobsByState[job.state] = [];
+                }
+                jobsByState[job.state].push(job);
+            });
+            
+            const states = Object.keys(jobsByState).sort();
+            
+            const companyDropdown = document.getElementById('company-dropdown');
+            companyDropdown.innerHTML = companies.map(c => `
+                <div class="multi-select-option" onclick="toggleSelection('company', '${c.replace(/'/g, "\\'")}')">
+                    <input type="checkbox" id="company-${c.replace(/[^a-zA-Z0-9]/g, '')}" ${selectedCompanies.includes(c) ? 'checked' : ''}>
+                    <label>${c}</label>
+                </div>
+            `).join('');
+            
+            // Build state dropdown
+            const locationDropdown = document.getElementById('location-dropdown');
+            locationDropdown.innerHTML = states.map(state => {
+                const count = jobsByState[state].length;
+                return `
+                    <div class="multi-select-section">${state} (${count} jobs)</div>
+                    <div class="multi-select-option" onclick="toggleSelection('state', '${state}')">
+                        <input type="checkbox" id="state-${state}" ${selectedStates.includes(state) ? 'checked' : ''}>
+                        <label>All ${state} jobs</label>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function toggleDropdown(type) {
+            const dropdown = document.getElementById(`${type}-dropdown`);
+            dropdown.classList.toggle('show');
+            
+            const other = type === 'company' ? 'location' : 'company';
+            document.getElementById(`${other}-dropdown`).classList.remove('show');
+        }
+        
+        function toggleSelection(type, value) {
+            if (type === 'company') {
+                const index = selectedCompanies.indexOf(value);
+                if (index > -1) {
+                    selectedCompanies.splice(index, 1);
+                } else {
+                    selectedCompanies.push(value);
+                }
+                updateSelectedDisplay('company');
+            } else if (type === 'state') {
+                const index = selectedStates.indexOf(value);
+                if (index > -1) {
+                    selectedStates.splice(index, 1);
+                } else {
+                    selectedStates.push(value);
+                }
+                updateSelectedDisplay('location');
+            }
+            
+            filterJobs();
+        }
+        
+        function updateSelectedDisplay(type) {
+            if (type === 'company') {
+                const container = document.getElementById('company-selected');
+                if (selectedCompanies.length === 0) {
+                    container.innerHTML = '<span class="multi-select-placeholder">All Companies</span>';
+                } else {
+                    container.innerHTML = selectedCompanies.map(item => `
+                        <span class="selected-item">
+                            ${item}
+                            <span class="remove" onclick="event.stopPropagation(); toggleSelection('company', '${item.replace(/'/g, "\\'")}')">&times;</span>
+                        </span>
+                    `).join('');
+                }
+            } else if (type === 'location') {
+                const container = document.getElementById('location-selected');
+                if (selectedStates.length === 0) {
+                    container.innerHTML = '<span class="multi-select-placeholder">All States</span>';
+                } else {
+                    container.innerHTML = selectedStates.map(item => `
+                        <span class="selected-item">
+                            ${item}
+                            <span class="remove" onclick="event.stopPropagation(); toggleSelection('state', '${item}')">&times;</span>
+                        </span>
+                    `).join('');
+                }
+            }
+        }
+        
+        function clearFilters() {
+            selectedCompanies = [];
+            selectedStates = [];
+            document.getElementById('search').value = '';
+            document.getElementById('recency-filter').value = '';
+            document.getElementById('relevant-only').checked = true;
+            updateSelectedDisplay('company');
+            updateSelectedDisplay('location');
+            filterJobs();
+        }
+        
+        function displayJobs(jobs) {
+            const container = document.getElementById('jobs-container');
+            document.getElementById('filtered-count').textContent = jobs.length;
+            
+            if (jobs.length === 0) {
+                container.innerHTML = '<div class="loading">No jobs found</div>';
+                return;
+            }
+            
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+            
+            container.innerHTML = jobs.map(job => {
+                const isNew = new Date(job.created_at) > sevenDaysAgo;
+                const posted = new Date(job.created_at).toLocaleDateString();
+                
+                return `
+                    <div class="job-card ${isNew ? 'new' : ''} ${job.isRelevant ? 'relevant' : ''}" onclick="showJobDetail('${job.id}')">
+                        <div class="job-header">
+                            <div style="flex: 1;">
+                                <div class="job-title">${job.title}</div>
+                                <div class="job-company">${job.company}</div>
+                                ${job.salary ? `<div class="job-salary">💰 ${job.salary}</div>` : ''}
+                            </div>
+                            <div style="display: flex; gap: 5px; flex-direction: column; align-items: flex-end;">
+                                ${isNew ? '<span class="badge badge-new">NEW</span>' : ''}
+                                ${job.isRelevant ? '<span class="badge badge-relevant">RELEVANT</span>' : ''}
+                            </div>
+                        </div>
+                        <div class="job-meta">
+                            <span>📍 ${job.location || 'Location not specified'} ${job.state !== 'Unknown' ? `(${job.state})` : ''}</span>
+                            <span>📅 ${posted}</span>
+                            <span class="badge badge-source">${job.source}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function showJobDetail(jobId) {
+            const job = allJobs.find(j => j.id === jobId);
+            if (!job) return;
+            
+            document.getElementById('modal-body').innerHTML = `
+                <h2>${job.title}</h2>
+                <div class="job-company" style="font-size: 1.2em; margin: 10px 0;">${job.company}</div>
+                ${job.salary ? `<div class="job-salary" style="font-size: 1.3em;">💰 ${job.salary}</div>` : ''}
+                <div class="job-meta" style="margin-top: 10px;">
+                    <span>📍 ${job.location || 'Not specified'} ${job.state !== 'Unknown' ? `(${job.state})` : ''}</span>
+                    <span>📅 Posted ${new Date(job.created_at).toLocaleDateString()}</span>
+                    <span class="badge badge-source">${job.source}</span>
+                    ${job.isRelevant ? '<span class="badge badge-relevant">RELEVANT</span>' : ''}
+                </div>
+                <div class="job-description">${job.description || 'No description available'}</div>
+                <div class="action-buttons">
+                    <button onclick="window.open('${job.url}', '_blank')">View Job →</button>
+                    <button class="btn-secondary" onclick="closeModal()">Close</button>
+                </div>
+            `;
+            
+            document.getElementById('job-modal').style.display = 'block';
+        }
+        
+        function closeModal() {
+            document.getElementById('job-modal').style.display = 'none';
+        }
+        
+        // Filter functionality
+        document.getElementById('search').addEventListener('input', filterJobs);
+        document.getElementById('recency-filter').addEventListener('change', filterJobs);
+        document.getElementById('relevant-only').addEventListener('change', filterJobs);
+        
+        function filterJobs() {
+            const search = document.getElementById('search').value.toLowerCase();
+            const recency = document.getElementById('recency-filter').value;
+            const relevantOnly = document.getElementById('relevant-only').checked;
+            
+            let filtered = allJobs;
+            
+            // Filter by relevance FIRST
+            if (relevantOnly) {
+                filtered = filtered.filter(job => job.isRelevant);
+            }
+            
+            if (search) {
+                filtered = filtered.filter(job => 
+                    job.title.toLowerCase().includes(search) ||
+                    (job.description && job.description.toLowerCase().includes(search))
+                );
+            }
+            
+            if (selectedCompanies.length > 0) {
+                filtered = filtered.filter(job => selectedCompanies.includes(job.company));
+            }
+            
+            if (selectedStates.length > 0) {
+                filtered = filtered.filter(job => selectedStates.includes(job.state));
+            }
+            
+            if (recency) {
+                const daysAgo = new Date();
+                daysAgo.setDate(daysAgo.getDate() - parseInt(recency));
+                filtered = filtered.filter(job => new Date(job.created_at) > daysAgo);
+            }
+            
+            displayJobs(filtered);
+        }
+        
+        // Close dropdowns on outside click
+        window.onclick = function(event) {
+            if (!event.target.closest('.multi-select-container')) {
+                document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
+            }
+            
+            const modal = document.getElementById('job-modal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+        
+        // Load jobs on page load
+        loadJobs();
+    </script>
+</body>
+</html>

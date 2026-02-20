@@ -4,23 +4,46 @@ from app.sources.workday_playwright import fetch_workday_jobs_sync
 from app.sources.workday import normalize_workday
 from app.sources.greenhouse import scrape_greenhouse
 from app.sources.lever import scrape_lever
+from app.sources.linkedin import scrape_linkedin_senior_tech_roles
+from app.sources.seek import scrape_seek_senior_tech_roles
 from app.emailer import send_email
 
-# ─── Relevance filters ───────────────────────────────────────────────────────
+# ─── EXPANDED Relevance filters ──────────────────────────────────────────────
 ROLE_KEYWORDS = [
-    "chief information", "chief technology", "chief digital", "chief data",
-    "cio", "cto", "cdo", "cdao",
-    "general manager", " gm ",
+    # C-Level & Executive
+    "chief information", "chief technology", "chief digital", "chief data", "chief innovation",
+    "cio", "cto", "cdo", "cdao", "chief",
+    
+    # Director Level
+    "director", "program director", "programme director", "project director",
+    "director of technology", "director of engineering", "director of it", "director of digital",
+    
+    # VP & Head Level
+    "vice president", "vp technology", "vp engineering", "vp digital", "vp it",
     "head of technology", "head of digital", "head of it", "head of data",
-    "head of transformation", "head of engineering",
-    "director", "program director", "programme director",
-    "vp technology", "vp engineering", "vice president",
+    "head of engineering", "head of transformation", "head of innovation",
+    
+    # General Manager Level
+    "general manager", " gm ", "gm technology", "gm digital", "gm it",
+    
+    # Senior Manager / Principal Level
+    "senior manager technology", "senior manager it", "senior manager digital",
+    "senior program manager", "senior project manager",
+    "principal engineer", "principal architect", "principal consultant",
+    "senior engineering manager", "senior product manager",
+    
+    # Program/Project Management
+    "program manager", "programme manager",
+    
+    # Functional Keywords
     "transformation", "technology", "digital", "information technology",
+    "enterprise architecture", "platform engineering", "infrastructure",
 ]
 
 AU_LOCATIONS = [
     "australia", "melbourne", "sydney", "brisbane",
-    "perth", "adelaide", "canberra", "remote", "au",
+    "perth", "adelaide", "canberra", "hobart", "darwin",
+    "remote", "au", "nsw", "vic", "qld", "wa", "sa", "act", "tas", "nt",
 ]
 
 
@@ -135,11 +158,6 @@ def run():
     for c in companies_with_ats:
         print(f"  - {c['ticker']:6} {c['name']:40} [{c['ats_type']}]")
     
-    if not companies_with_ats:
-        print("\n⚠ No companies with supported ATS found. Run discovery first!")
-        print("   python -m app.discover")
-        return
-    
     print(f"\n{'='*80}")
     print("Starting job ingestion...")
     print("=" * 80)
@@ -147,6 +165,7 @@ def run():
     all_relevant_new = []
     stats = {"total_jobs": 0, "new_jobs": 0, "relevant_new": 0, "companies_processed": 0}
 
+    # ─── STEP 1: Scrape company career sites ─────────────────────────────────
     for c in companies_with_ats:
         ats_type = c["ats_type"]
         name = c["name"]
@@ -176,7 +195,6 @@ def run():
 
         print(f"  ✓ Normalized {len(normalized)} jobs")
         
-        # CRITICAL FIX: Deduplicate before upserting
         normalized = deduplicate_jobs(normalized)
         print(f"  ✓ Deduplicated to {len(normalized)} unique jobs")
         
@@ -185,7 +203,6 @@ def run():
         saved = upsert_jobs(normalized)
         print(f"  ✓ Upserted {len(saved)} rows to database")
 
-        # Detect new jobs (created_at == updated_at means freshly inserted)
         new_jobs = [j for j in saved if j.get("created_at") == j.get("updated_at")]
         relevant = [j for j in new_jobs if is_relevant(j)]
 
@@ -198,13 +215,101 @@ def run():
         
         if relevant:
             print(f"  → Relevant roles found:")
-            for j in relevant[:5]:  # Show first 5
+            for j in relevant[:5]:
                 print(f"     • {j['title']} ({j.get('location', 'N/A')})")
             if len(relevant) > 5:
                 print(f"     ... and {len(relevant) - 5} more")
         
         all_relevant_new.extend(relevant)
-        time.sleep(1.0)  # be polite between companies
+        time.sleep(1.0)
+
+    # ─── STEP 2: Scrape LinkedIn ─────────────────────────────────────────────
+    print(f"\n{'='*80}")
+    print("LINKEDIN JOB SEARCH")
+    print(f"{'='*80}")
+    
+    try:
+        linkedin_jobs = scrape_linkedin_senior_tech_roles()
+        
+        if linkedin_jobs:
+            print(f"\n✓ Scraped {len(linkedin_jobs)} jobs from LinkedIn")
+            
+            linkedin_jobs = deduplicate_jobs(linkedin_jobs)
+            print(f"✓ Deduplicated to {len(linkedin_jobs)} unique LinkedIn jobs")
+            
+            stats["total_jobs"] += len(linkedin_jobs)
+            
+            saved_linkedin = upsert_jobs(linkedin_jobs)
+            print(f"✓ Upserted {len(saved_linkedin)} LinkedIn jobs to database")
+            
+            new_linkedin = [j for j in saved_linkedin if j.get("created_at") == j.get("updated_at")]
+            relevant_linkedin = [j for j in new_linkedin if is_relevant(j)]
+            
+            stats["new_jobs"] += len(new_linkedin)
+            stats["relevant_new"] += len(relevant_linkedin)
+            
+            print(f"→ New LinkedIn jobs this run: {len(new_linkedin)}")
+            print(f"→ Relevant new LinkedIn jobs: {len(relevant_linkedin)}")
+            
+            if relevant_linkedin:
+                print(f"→ Sample LinkedIn roles:")
+                for j in relevant_linkedin[:5]:
+                    print(f"   • {j['title']} at {j['company']} ({j.get('location', 'N/A')})")
+                if len(relevant_linkedin) > 5:
+                    print(f"   ... and {len(relevant_linkedin) - 5} more")
+            
+            all_relevant_new.extend(relevant_linkedin)
+        else:
+            print("⚠ No jobs returned from LinkedIn")
+    
+    except Exception as e:
+        print(f"✗ LinkedIn scraping failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+    # ─── STEP 3: Scrape Seek ─────────────────────────────────────────────────
+    print(f"\n{'='*80}")
+    print("SEEK JOB SEARCH")
+    print(f"{'='*80}")
+    
+    try:
+        seek_jobs = scrape_seek_senior_tech_roles()
+        
+        if seek_jobs:
+            print(f"\n✓ Scraped {len(seek_jobs)} jobs from Seek")
+            
+            seek_jobs = deduplicate_jobs(seek_jobs)
+            print(f"✓ Deduplicated to {len(seek_jobs)} unique Seek jobs")
+            
+            stats["total_jobs"] += len(seek_jobs)
+            
+            saved_seek = upsert_jobs(seek_jobs)
+            print(f"✓ Upserted {len(saved_seek)} Seek jobs to database")
+            
+            new_seek = [j for j in saved_seek if j.get("created_at") == j.get("updated_at")]
+            relevant_seek = [j for j in new_seek if is_relevant(j)]
+            
+            stats["new_jobs"] += len(new_seek)
+            stats["relevant_new"] += len(relevant_seek)
+            
+            print(f"→ New Seek jobs this run: {len(new_seek)}")
+            print(f"→ Relevant new Seek jobs: {len(relevant_seek)}")
+            
+            if relevant_seek:
+                print(f"→ Sample Seek roles:")
+                for j in relevant_seek[:5]:
+                    print(f"   • {j['title']} at {j['company']} ({j.get('location', 'N/A')})")
+                if len(relevant_seek) > 5:
+                    print(f"   ... and {len(relevant_seek) - 5} more")
+            
+            all_relevant_new.extend(relevant_seek)
+        else:
+            print("⚠ No jobs returned from Seek")
+    
+    except Exception as e:
+        print(f"✗ Seek scraping failed: {e}")
+        import traceback
+        traceback.print_exc()
 
     # ── Summary and Email ─────────────────────────────────────────────────────
     print(f"\n{'='*80}")
@@ -230,7 +335,7 @@ def run():
         <p>Found <b>{len(all_relevant_new)}</b> new relevant roles matching your criteria:</p>
         <ul style='line-height:1.8'>{items}</ul>
         <hr>
-        <p style='color:#999;font-size:12px'>JobRadar • ASX200 job monitor</p>
+        <p style='color:#999;font-size:12px'>JobRadar • ASX200 + LinkedIn + Seek monitor</p>
         </body></html>
         """
         try:
