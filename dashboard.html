@@ -20,6 +20,20 @@
         input, select, textarea { padding: 10px 15px; border: 1px solid #d2d2d7; border-radius: 8px; font-size: 1em; font-family: inherit; }
         input, select { flex: 1; min-width: 200px; }
         input:focus, select:focus, textarea:focus { outline: none; border-color: #0066cc; }
+        .multi-select-container { flex: 1; min-width: 300px; position: relative; }
+        .multi-select-label { font-size: 0.9em; color: #6e6e73; margin-bottom: 5px; display: block; }
+        .multi-select-box { border: 1px solid #d2d2d7; border-radius: 8px; padding: 10px; background: white; min-height: 45px; cursor: pointer; position: relative; }
+        .multi-select-box:hover { border-color: #0066cc; }
+        .selected-items { display: flex; flex-wrap: wrap; gap: 5px; }
+        .selected-item { background: #0066cc; color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
+        .selected-item .remove { cursor: pointer; font-weight: bold; }
+        .multi-select-placeholder { color: #86868b; }
+        .multi-select-dropdown { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #d2d2d7; border-radius: 8px; margin-top: 5px; max-height: 400px; overflow-y: auto; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .multi-select-dropdown.show { display: block; }
+        .multi-select-section { padding: 10px 15px; background: #f5f5f7; font-weight: 600; font-size: 0.9em; color: #6e6e73; border-bottom: 1px solid #e5e5e5; }
+        .multi-select-option { padding: 10px 15px 10px 30px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .multi-select-option:hover { background: #f5f5f7; }
+        .multi-select-option input[type="checkbox"] { min-width: auto; width: 18px; height: 18px; cursor: pointer; }
         .toggle-switch { display: flex; align-items: center; gap: 10px; padding: 10px 15px; background: #f5f5f7; border-radius: 8px; cursor: pointer; user-select: none; }
         .toggle-switch input[type="checkbox"] { min-width: auto; width: 20px; height: 20px; cursor: pointer; }
         .toggle-switch label { cursor: pointer; font-weight: 500; }
@@ -72,7 +86,6 @@
         .status-section h3 { margin-bottom: 15px; }
         .comment-box { width: 100%; min-height: 100px; margin-top: 10px; padding: 10px; }
         .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-        .status-filter { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
     </style>
 </head>
 <body>
@@ -96,7 +109,22 @@
                 <div class="toggle-switch"><input type="checkbox" id="relevant-only" checked><label for="relevant-only">Show Relevant Only</label></div>
             </div>
             <div class="filter-row">
-                <div style="flex: 1; min-width: 200px;"><label style="font-size: 0.9em; color: #6e6e73; display: block; margin-bottom: 5px;">Status Filter</label>
+                <div class="multi-select-container">
+                    <label class="multi-select-label">Companies</label>
+                    <div class="multi-select-box" onclick="toggleDropdown('company')">
+                        <div class="selected-items" id="company-selected"><span class="multi-select-placeholder">All Companies</span></div>
+                    </div>
+                    <div class="multi-select-dropdown" id="company-dropdown"></div>
+                </div>
+                <div class="multi-select-container">
+                    <label class="multi-select-label">States & Locations</label>
+                    <div class="multi-select-box" onclick="toggleDropdown('location')">
+                        <div class="selected-items" id="location-selected"><span class="multi-select-placeholder">All States</span></div>
+                    </div>
+                    <div class="multi-select-dropdown" id="location-dropdown"></div>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-size: 0.9em; color: #6e6e73; display: block; margin-bottom: 5px;">Status Filter</label>
                     <select id="status-filter">
                         <option value="">All Statuses</option>
                         <option value="untracked">Not Yet Reviewed</option>
@@ -107,6 +135,8 @@
                         <option value="offer">Offer</option>
                     </select>
                 </div>
+            </div>
+            <div class="filter-row">
                 <button onclick="clearFilters()" class="btn-secondary">Clear Filters</button>
                 <button onclick="loadJobs()">Refresh</button>
             </div>
@@ -130,8 +160,32 @@
         const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         
         let allJobs = [];
+        let selectedCompanies = [];
+        let selectedStates = [];
+        
+        const STATE_MAPPING = {
+            'VIC': ['melbourne', 'geelong', 'ballarat', 'bendigo', 'victoria', 'vic'],
+            'NSW': ['sydney', 'newcastle', 'wollongong', 'central coast', 'new south wales', 'nsw'],
+            'QLD': ['brisbane', 'gold coast', 'sunshine coast', 'cairns', 'townsville', 'queensland', 'qld'],
+            'WA': ['perth', 'fremantle', 'western australia', 'wa'],
+            'SA': ['adelaide', 'south australia', 'sa'],
+            'TAS': ['hobart', 'launceston', 'tasmania', 'tas'],
+            'ACT': ['canberra', 'act'],
+            'NT': ['darwin', 'northern territory', 'nt'],
+            'Remote': ['remote', 'work from home', 'wfh', 'australia']
+        };
+        
         const ROLE_KEYWORDS = ["chief information", "chief technology", "chief digital", "chief data", "chief innovation", "cio", "cto", "cdo", "cdao", "chief", "director", "program director", "programme director", "project director", "vice president", "vp technology", "vp engineering", "head of technology", "head of digital", "head of it", "head of data", "head of engineering", "head of transformation", "general manager", " gm ", "gm technology", "senior manager technology", "senior manager it", "senior program manager", "senior project manager", "principal engineer", "principal architect", "program manager", "programme manager", "transformation", "technology", "digital", "enterprise architecture"];
         const AU_LOCATIONS = ["australia", "melbourne", "sydney", "brisbane", "perth", "adelaide", "canberra", "remote", "au", "nsw", "vic", "qld", "wa", "sa", "act"];
+        
+        function getStateFromLocation(location) {
+            if (!location) return 'Unknown';
+            const loc = location.toLowerCase();
+            for (const [state, keywords] of Object.entries(STATE_MAPPING)) {
+                if (keywords.some(keyword => loc.includes(keyword))) return state;
+            }
+            return 'Unknown';
+        }
         
         function isRelevant(job) {
             const title = (job.title || "").toLowerCase();
@@ -143,8 +197,9 @@
             try {
                 const { data, error } = await client.from('jobs').select('*').eq('is_active', true).order('created_at', { ascending: false });
                 if (error) throw error;
-                allJobs = (data || []).map(job => ({ ...job, isRelevant: isRelevant(job) }));
+                allJobs = (data || []).map(job => ({ ...job, isRelevant: isRelevant(job), state: getStateFromLocation(job.location) }));
                 updateStats();
+                populateMultiSelects();
                 filterJobs();
             } catch (error) {
                 console.error('Error:', error);
@@ -162,6 +217,58 @@
             document.getElementById('interviewing-count').textContent = allJobs.filter(j => j.status === 'interviewing').length;
         }
         
+        function populateMultiSelects() {
+            const companies = [...new Set(allJobs.map(j => j.company))].sort();
+            const jobsByState = {};
+            allJobs.forEach(job => { if (!jobsByState[job.state]) jobsByState[job.state] = []; jobsByState[job.state].push(job); });
+            const states = Object.keys(jobsByState).sort();
+            
+            document.getElementById('company-dropdown').innerHTML = companies.map(c => 
+                `<div class="multi-select-option" onclick="toggleSelection('company', '${c.replace(/'/g, "\\'")}')">
+                    <input type="checkbox" ${selectedCompanies.includes(c) ? 'checked' : ''}><label>${c}</label></div>`
+            ).join('');
+            
+            document.getElementById('location-dropdown').innerHTML = states.map(state => {
+                const count = jobsByState[state].length;
+                return `<div class="multi-select-section">${state} (${count} jobs)</div>
+                    <div class="multi-select-option" onclick="toggleSelection('state', '${state}')">
+                        <input type="checkbox" ${selectedStates.includes(state) ? 'checked' : ''}><label>All ${state} jobs</label></div>`;
+            }).join('');
+        }
+        
+        function toggleDropdown(type) {
+            document.getElementById(`${type}-dropdown`).classList.toggle('show');
+            const other = type === 'company' ? 'location' : 'company';
+            document.getElementById(`${other}-dropdown`).classList.remove('show');
+        }
+        
+        function toggleSelection(type, value) {
+            if (type === 'company') {
+                const index = selectedCompanies.indexOf(value);
+                if (index > -1) selectedCompanies.splice(index, 1);
+                else selectedCompanies.push(value);
+                updateSelectedDisplay('company');
+            } else if (type === 'state') {
+                const index = selectedStates.indexOf(value);
+                if (index > -1) selectedStates.splice(index, 1);
+                else selectedStates.push(value);
+                updateSelectedDisplay('location');
+            }
+            filterJobs();
+        }
+        
+        function updateSelectedDisplay(type) {
+            if (type === 'company') {
+                const container = document.getElementById('company-selected');
+                container.innerHTML = selectedCompanies.length === 0 ? '<span class="multi-select-placeholder">All Companies</span>' :
+                    selectedCompanies.map(item => `<span class="selected-item">${item}<span class="remove" onclick="event.stopPropagation(); toggleSelection('company', '${item.replace(/'/g, "\\'")}')">&times;</span></span>`).join('');
+            } else if (type === 'location') {
+                const container = document.getElementById('location-selected');
+                container.innerHTML = selectedStates.length === 0 ? '<span class="multi-select-placeholder">All States</span>' :
+                    selectedStates.map(item => `<span class="selected-item">${item}<span class="remove" onclick="event.stopPropagation(); toggleSelection('state', '${item}')">&times;</span></span>`).join('');
+            }
+        }
+        
         function filterJobs() {
             const search = document.getElementById('search').value.toLowerCase();
             const recency = document.getElementById('recency-filter').value;
@@ -171,6 +278,8 @@
             let filtered = allJobs;
             if (relevantOnly) filtered = filtered.filter(j => j.isRelevant);
             if (search) filtered = filtered.filter(j => j.title.toLowerCase().includes(search) || (j.description && j.description.toLowerCase().includes(search)));
+            if (selectedCompanies.length > 0) filtered = filtered.filter(j => selectedCompanies.includes(j.company));
+            if (selectedStates.length > 0) filtered = filtered.filter(j => selectedStates.includes(j.state));
             if (statusFilter === 'untracked') filtered = filtered.filter(j => !j.status);
             else if (statusFilter) filtered = filtered.filter(j => j.status === statusFilter);
             if (recency) { const daysAgo = new Date(); daysAgo.setDate(daysAgo.getDate() - parseInt(recency)); filtered = filtered.filter(j => new Date(j.created_at) > daysAgo); }
@@ -199,7 +308,7 @@
                                 </div>
                             </div>
                             <div class="job-meta">
-                                <span>📍 ${job.location || 'Location not specified'}</span>
+                                <span>📍 ${job.location || 'Location not specified'} ${job.state !== 'Unknown' ? `(${job.state})` : ''}</span>
                                 <span>📅 ${posted}</span>
                                 <span class="badge badge-source">${job.source}</span>
                             </div>
@@ -225,9 +334,7 @@
                 if (job) job.status = status;
                 updateStats();
                 filterJobs();
-            } catch (error) {
-                alert('Error updating status: ' + error.message);
-            }
+            } catch (error) { alert('Error updating status: ' + error.message); }
         }
         
         async function updateComments(jobId, comments) {
@@ -237,9 +344,7 @@
                 const job = allJobs.find(j => j.id === jobId);
                 if (job) job.comments = comments;
                 filterJobs();
-            } catch (error) {
-                alert('Error saving comments: ' + error.message);
-            }
+            } catch (error) { alert('Error saving comments: ' + error.message); }
         }
         
         function showJobDetail(jobId) {
@@ -249,7 +354,7 @@
                 <h2>${job.title}</h2>
                 <div class="job-company" style="font-size: 1.2em; margin: 10px 0;">${job.company}</div>
                 <div class="job-meta" style="margin-top: 10px;">
-                    <span>📍 ${job.location || 'Not specified'}</span>
+                    <span>📍 ${job.location || 'Not specified'} ${job.state !== 'Unknown' ? `(${job.state})` : ''}</span>
                     <span>📅 Posted ${new Date(job.created_at).toLocaleDateString()}</span>
                     <span class="badge badge-source">${job.source}</span>
                     ${job.status ? `<span class="badge badge-status badge-${job.status}">${job.status}</span>` : ''}
@@ -278,13 +383,29 @@
         }
         
         function closeModal() { document.getElementById('job-modal').style.display = 'none'; }
-        function clearFilters() { document.getElementById('search').value = ''; document.getElementById('recency-filter').value = ''; document.getElementById('status-filter').value = ''; document.getElementById('relevant-only').checked = true; filterJobs(); }
+        
+        function clearFilters() { 
+            selectedCompanies = []; 
+            selectedStates = []; 
+            document.getElementById('search').value = ''; 
+            document.getElementById('recency-filter').value = ''; 
+            document.getElementById('status-filter').value = ''; 
+            document.getElementById('relevant-only').checked = true; 
+            updateSelectedDisplay('company');
+            updateSelectedDisplay('location');
+            filterJobs(); 
+        }
         
         document.getElementById('search').addEventListener('input', filterJobs);
         document.getElementById('recency-filter').addEventListener('change', filterJobs);
         document.getElementById('status-filter').addEventListener('change', filterJobs);
         document.getElementById('relevant-only').addEventListener('change', filterJobs);
-        window.onclick = function(event) { if (event.target === document.getElementById('job-modal')) closeModal(); }
+        window.onclick = function(event) { 
+            if (!event.target.closest('.multi-select-container')) {
+                document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
+            }
+            if (event.target === document.getElementById('job-modal')) closeModal(); 
+        }
         
         loadJobs();
     </script>
