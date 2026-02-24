@@ -38,6 +38,8 @@ ROLE_KEYWORDS = [
     # Functional Keywords
     "transformation", "technology", "digital", "information technology",
     "enterprise architecture", "platform engineering", "infrastructure",
+
+    "apac", "global",
 ]
 
 AU_LOCATIONS = [

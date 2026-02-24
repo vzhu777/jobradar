@@ -49,7 +49,7 @@
         .btn-rejected { background: #ff3b30; }
         .btn-offer { background: #af52de; }
         .jobs-grid { display: grid; gap: 15px; }
-        .job-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e5e5e5; cursor: pointer; transition: all 0.2s; position: relative; }
+        .job-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #e5e5e5; transition: all 0.2s; position: relative; }
         .job-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-2px); }
         .job-card.new { border-left: 4px solid #34c759; }
         .job-card.relevant { border-left: 4px solid #ff9500; }
@@ -58,6 +58,7 @@
         .job-card.status-interviewing { border-left: 4px solid #ff9500; }
         .job-card.status-rejected { border-left: 4px solid #ff3b30; opacity: 0.6; }
         .job-card.status-offer { border-left: 4px solid #af52de; }
+        .job-card-clickable { cursor: pointer; }
         .job-header { display: flex; justify-content: space-between; align-items: start; margin-bottom: 12px; }
         .job-title { font-size: 1.3em; font-weight: 600; color: #1d1d1f; margin-bottom: 8px; }
         .job-company { color: #0066cc; font-weight: 500; margin-bottom: 5px; }
@@ -77,15 +78,6 @@
         .badge-rejected { background: #ff3b30; color: white; }
         .badge-offer { background: #af52de; color: white; }
         .loading { text-align: center; padding: 60px; color: #6e6e73; font-size: 1.2em; }
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; overflow-y: auto; }
-        .modal-content { background: white; max-width: 800px; margin: 50px auto; padding: 40px; border-radius: 12px; position: relative; }
-        .modal-close { position: absolute; top: 20px; right: 20px; font-size: 2em; cursor: pointer; color: #6e6e73; }
-        .modal-close:hover { color: #1d1d1f; }
-        .job-description { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e5e5; white-space: pre-wrap; line-height: 1.8; }
-        .status-section { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e5e5; }
-        .status-section h3 { margin-bottom: 15px; }
-        .comment-box { width: 100%; min-height: 100px; margin-top: 10px; padding: 10px; }
-        .action-buttons { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
     </style>
 </head>
 <body>
@@ -145,13 +137,6 @@
         <div class="jobs-grid" id="jobs-container"><div class="loading">Loading jobs...</div></div>
     </div>
     
-    <div class="modal" id="job-modal">
-        <div class="modal-content">
-            <span class="modal-close" onclick="closeModal()">&times;</span>
-            <div id="modal-body"></div>
-        </div>
-    </div>
-    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         const SUPABASE_URL = 'https://cvgdclbpgpuntooszlol.supabase.co';
@@ -175,7 +160,8 @@
             'Remote': ['remote', 'work from home', 'wfh', 'australia']
         };
         
-        const ROLE_KEYWORDS = ["chief information", "chief technology", "chief digital", "chief data", "chief innovation", "cio", "cto", "cdo", "cdao", "chief", "director", "program director", "programme director", "project director", "vice president", "vp technology", "vp engineering", "head of technology", "head of digital", "head of it", "head of data", "head of engineering", "head of transformation", "general manager", " gm ", "gm technology", "senior manager technology", "senior manager it", "senior program manager", "senior project manager", "principal engineer", "principal architect", "program manager", "programme manager", "transformation", "technology", "digital", "enterprise architecture"];
+        // UPDATED: Added "apac" and "global" to keywords
+        const ROLE_KEYWORDS = ["chief information", "chief technology", "chief digital", "chief data", "chief innovation", "cio", "cto", "cdo", "cdao", "chief", "director", "program director", "programme director", "project director", "vice president", "vp technology", "vp engineering", "head of technology", "head of digital", "head of it", "head of data", "head of engineering", "head of transformation", "general manager", " gm ", "gm technology", "senior manager technology", "senior manager it", "senior program manager", "senior project manager", "principal engineer", "principal architect", "program manager", "programme manager", "transformation", "technology", "digital", "enterprise architecture", "apac", "global"];
         const AU_LOCATIONS = ["australia", "melbourne", "sydney", "brisbane", "perth", "adelaide", "canberra", "remote", "au", "nsw", "vic", "qld", "wa", "sa", "act"];
         
         function getStateFromLocation(location) {
@@ -298,7 +284,7 @@
                 const statusClass = job.status ? `status-${job.status}` : '';
                 return `
                     <div class="job-card ${isNew ? 'new' : ''} ${job.isRelevant ? 'relevant' : ''} ${statusClass}">
-                        <div onclick="showJobDetail('${job.id}')" style="cursor: pointer;">
+                        <div class="job-card-clickable" onclick="window.open('${job.url}', '_blank')">
                             <div class="job-header">
                                 <div style="flex: 1;"><div class="job-title">${job.title}</div><div class="job-company">${job.company}</div></div>
                                 <div style="display: flex; gap: 5px; flex-direction: column; align-items: flex-end;">
@@ -337,53 +323,6 @@
             } catch (error) { alert('Error updating status: ' + error.message); }
         }
         
-        async function updateComments(jobId, comments) {
-            try {
-                const { error } = await client.from('jobs').update({ comments: comments }).eq('id', jobId);
-                if (error) throw error;
-                const job = allJobs.find(j => j.id === jobId);
-                if (job) job.comments = comments;
-                filterJobs();
-            } catch (error) { alert('Error saving comments: ' + error.message); }
-        }
-        
-        function showJobDetail(jobId) {
-            const job = allJobs.find(j => j.id === jobId);
-            if (!job) return;
-            document.getElementById('modal-body').innerHTML = `
-                <h2>${job.title}</h2>
-                <div class="job-company" style="font-size: 1.2em; margin: 10px 0;">${job.company}</div>
-                <div class="job-meta" style="margin-top: 10px;">
-                    <span>📍 ${job.location || 'Not specified'} ${job.state !== 'Unknown' ? `(${job.state})` : ''}</span>
-                    <span>📅 Posted ${new Date(job.created_at).toLocaleDateString()}</span>
-                    <span class="badge badge-source">${job.source}</span>
-                    ${job.status ? `<span class="badge badge-status badge-${job.status}">${job.status}</span>` : ''}
-                </div>
-                <div class="job-description">${job.description || 'No description available'}</div>
-                <div class="status-section">
-                    <h3>Job Status</h3>
-                    <div class="job-status-buttons">
-                        <button class="btn-interested" onclick="updateStatus('${job.id}', 'interested'); closeModal();">Interested</button>
-                        <button class="btn-applied" onclick="updateStatus('${job.id}', 'applied'); closeModal();">Applied</button>
-                        <button class="btn-interviewing" onclick="updateStatus('${job.id}', 'interviewing'); closeModal();">Interviewing</button>
-                        <button class="btn-rejected" onclick="updateStatus('${job.id}', 'rejected'); closeModal();">Rejected</button>
-                        <button class="btn-offer" onclick="updateStatus('${job.id}', 'offer'); closeModal();">Offer</button>
-                        ${job.status ? '<button class="btn-secondary" onclick="updateStatus(\'' + job.id + '\', null); closeModal();">Clear Status</button>' : ''}
-                    </div>
-                    <h3 style="margin-top: 20px;">Notes</h3>
-                    <textarea class="comment-box" id="comment-input" placeholder="Add your notes here...">${job.comments || ''}</textarea>
-                    <button onclick="updateComments('${job.id}', document.getElementById('comment-input').value); alert('Comments saved!');" style="margin-top: 10px;">Save Comments</button>
-                </div>
-                <div class="action-buttons">
-                    <button onclick="window.open('${job.url}', '_blank')">View Job →</button>
-                    <button class="btn-secondary" onclick="closeModal()">Close</button>
-                </div>
-            `;
-            document.getElementById('job-modal').style.display = 'block';
-        }
-        
-        function closeModal() { document.getElementById('job-modal').style.display = 'none'; }
-        
         function clearFilters() { 
             selectedCompanies = []; 
             selectedStates = []; 
@@ -404,7 +343,6 @@
             if (!event.target.closest('.multi-select-container')) {
                 document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('show'));
             }
-            if (event.target === document.getElementById('job-modal')) closeModal(); 
         }
         
         loadJobs();
