@@ -8,7 +8,7 @@ import random
 import hashlib
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
-# Senior tech role search terms
+# Senior tech role search terms (including APAC and Global)
 SENIOR_TECH_SEARCHES = [
     "Chief Information Officer",
     "Chief Technology Officer", 
@@ -18,6 +18,20 @@ SENIOR_TECH_SEARCHES = [
     "Head of Technology",
     "Head of IT",
     "General Manager Technology",
+    "APAC Technology Director",
+    "Global Technology Director",
+
+    # Mandarin / China market roles
+    "Mandarin speaking",
+    "Mandarin required",
+    "China market",
+    "Greater China",
+    "China business development",
+    "APAC business development",
+    "APAC growth",
+    "APAC expansion",
+    "China strategy",
+    "Head of China",
 ]
 
 AUSTRALIAN_LOCATIONS = [

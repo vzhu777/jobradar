@@ -6,6 +6,7 @@ from app.sources.greenhouse import scrape_greenhouse
 from app.sources.lever import scrape_lever
 from app.sources.linkedin import scrape_linkedin_senior_tech_roles
 from app.sources.seek import scrape_seek_senior_tech_roles
+from app.sources.efinancialcareers import scrape_efc_jobs, APAC_CHINA_SIGNALS
 from app.emailer import send_email
 
 # ─── EXPANDED Relevance filters ──────────────────────────────────────────────
@@ -38,9 +39,17 @@ ROLE_KEYWORDS = [
     # Functional Keywords
     "transformation", "technology", "digital", "information technology",
     "enterprise architecture", "platform engineering", "infrastructure",
-
     "apac", "global",
+
+    # ── APAC & China expansion ─────────────────────────────────────────────
+    # These are imported from efinancialcareers.py and appended below.
+    # Defined here as empty placeholder; populated at module load via
+    # ROLE_KEYWORDS.extend(APAC_CHINA_SIGNALS) after imports resolve.
 ]
+
+# Extend with APAC/China signals so is_relevant() catches eFC roles from
+# both the technology and apac_china tracks.
+ROLE_KEYWORDS.extend(APAC_CHINA_SIGNALS)
 
 AU_LOCATIONS = [
     "australia", "melbourne", "sydney", "brisbane",
@@ -313,6 +322,68 @@ def run():
         import traceback
         traceback.print_exc()
 
+    # ─── STEP 4: Scrape eFinancialCareers ────────────────────────────────────
+    print(f"\n{'='*80}")
+    print("EFINANCIALCAREERS JOB SEARCH")
+    print(f"{'='*80}")
+    
+    try:
+        efc_jobs = scrape_efc_jobs()
+        
+        if efc_jobs:
+            print(f"\n✓ Scraped {len(efc_jobs)} jobs from eFinancialCareers")
+            
+            efc_jobs = deduplicate_jobs(efc_jobs)
+            print(f"✓ Deduplicated to {len(efc_jobs)} unique eFC jobs")
+            
+            stats["total_jobs"] += len(efc_jobs)
+            
+            saved_efc = upsert_jobs(efc_jobs)
+            print(f"✓ Upserted {len(saved_efc)} eFC jobs to database")
+            
+            new_efc = [j for j in saved_efc if j.get("created_at") == j.get("updated_at")]
+            relevant_efc = [j for j in new_efc if is_relevant(j)]
+            
+            stats["new_jobs"] += len(new_efc)
+            stats["relevant_new"] += len(relevant_efc)
+            
+            print(f"→ New eFC jobs this run: {len(new_efc)}")
+            print(f"→ Relevant new eFC jobs: {len(relevant_efc)}")
+            
+            if relevant_efc:
+                # Sub-group by track for readable console output
+                tech_roles = [j for j in relevant_efc if "technology" in (j.get("description") or "")]
+                apac_roles = [j for j in relevant_efc if "apac_china" in (j.get("description") or "")]
+                other_roles = [j for j in relevant_efc if j not in tech_roles and j not in apac_roles]
+
+                if tech_roles:
+                    print(f"\n  📱 Technology leadership roles ({len(tech_roles)}):")
+                    for j in tech_roles[:5]:
+                        print(f"     • {j['title']} at {j['company']} ({j.get('location', 'N/A')})")
+                    if len(tech_roles) > 5:
+                        print(f"     ... and {len(tech_roles) - 5} more")
+
+                if apac_roles:
+                    print(f"\n  🌏 APAC & China strategy roles ({len(apac_roles)}):")
+                    for j in apac_roles[:5]:
+                        print(f"     • {j['title']} at {j['company']} ({j.get('location', 'N/A')})")
+                    if len(apac_roles) > 5:
+                        print(f"     ... and {len(apac_roles) - 5} more")
+
+                if other_roles:
+                    print(f"\n  📋 Other relevant roles ({len(other_roles)}):")
+                    for j in other_roles[:3]:
+                        print(f"     • {j['title']} at {j['company']} ({j.get('location', 'N/A')})")
+            
+            all_relevant_new.extend(relevant_efc)
+        else:
+            print("⚠ No jobs returned from eFinancialCareers")
+    
+    except Exception as e:
+        print(f"✗ eFinancialCareers scraping failed: {e}")
+        import traceback
+        traceback.print_exc()
+
     # ── Summary and Email ─────────────────────────────────────────────────────
     print(f"\n{'='*80}")
     print("INGESTION COMPLETE")
@@ -326,18 +397,57 @@ def run():
     if all_relevant_new:
         print(f"📧 Sending email with {len(all_relevant_new)} relevant roles...\n")
         
-        items = "\n".join(
-            f"<li><b>{j['company']}</b> — <a href='{j['url']}'>{j['title']}</a> "
-            f"<span style='color:#666'>({j.get('location','')}) [{j.get('source','')}]</span></li>"
-            for j in all_relevant_new
-        )
+        def make_section(title: str, jobs: list[dict], color: str) -> str:
+            if not jobs:
+                return ""
+            items = "\n".join(
+                f"<li style='margin-bottom:8px'>"
+                f"<b>{j['company']}</b> — "
+                f"<a href='{j['url']}' style='color:#0066cc'>{j['title']}</a> "
+                f"<span style='color:#666'>({j.get('location','')}) "
+                f"[{j.get('source','')}]</span>"
+                f"</li>"
+                for j in jobs
+            )
+            return f"""
+            <h3 style='color:{color};margin-top:24px;margin-bottom:8px'>{title}</h3>
+            <ul style='line-height:1.8;padding-left:20px'>{items}</ul>
+            """
+
+        # Split into three groups for the email
+        apac_china_jobs = [
+            j for j in all_relevant_new
+            if j.get("source") == "efinancialcareers"
+            and "apac_china" in (j.get("description") or "")
+        ]
+        tech_efc_jobs = [
+            j for j in all_relevant_new
+            if j.get("source") == "efinancialcareers"
+            and "apac_china" not in (j.get("description") or "")
+        ]
+        other_jobs = [
+            j for j in all_relevant_new
+            if j.get("source") != "efinancialcareers"
+        ]
+
         html = f"""
-        <html><body>
-        <h2 style='color:#1a1a2e'>JobRadar — New Relevant Roles</h2>
-        <p>Found <b>{len(all_relevant_new)}</b> new relevant roles matching your criteria:</p>
-        <ul style='line-height:1.8'>{items}</ul>
-        <hr>
-        <p style='color:#999;font-size:12px'>JobRadar • ASX200 + LinkedIn + Seek monitor</p>
+        <html><body style='font-family:Arial,sans-serif;max-width:700px;margin:0 auto'>
+        <h2 style='color:#1a1a2e;border-bottom:2px solid #1a1a2e;padding-bottom:8px'>
+            JobRadar — {len(all_relevant_new)} New Relevant Roles
+        </h2>
+        <p style='color:#444'>
+            Found <b>{len(all_relevant_new)}</b> new roles matching your criteria
+            across {len(set(j.get('source') for j in all_relevant_new))} sources.
+        </p>
+
+        {make_section('🌏 APAC & China Strategy Roles', apac_china_jobs, '#c0392b')}
+        {make_section('💻 Technology Leadership (eFinancialCareers)', tech_efc_jobs, '#2980b9')}
+        {make_section('📋 Technology Leadership (LinkedIn / Seek / ATS)', other_jobs, '#27ae60')}
+
+        <hr style='margin-top:32px'>
+        <p style='color:#999;font-size:12px'>
+            JobRadar • ASX200 + LinkedIn + Seek + eFinancialCareers monitor
+        </p>
         </body></html>
         """
         try:

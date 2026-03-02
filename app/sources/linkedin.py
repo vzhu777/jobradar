@@ -1,6 +1,6 @@
 # app/sources/linkedin.py
 """
-LinkedIn RSS feed scraper - EXPANDED coverage
+LinkedIn RSS feed scraper - EXPANDED coverage including APAC and Global roles
 """
 from __future__ import annotations
 import hashlib
@@ -108,9 +108,10 @@ def normalize_linkedin(job: dict) -> dict:
 
 def scrape_linkedin_senior_tech_roles(location: str = "Australia") -> list[dict]:
     """
-    EXPANDED LinkedIn scraping - more search terms and pages.
+    Main entry point for LinkedIn scraping.
+    Searches for senior tech roles including APAC and Global positions.
     """
-    # EXPANDED search terms (20 terms instead of 11)
+    # EXPANDED search terms (25 terms including APAC and Global)
     search_terms = [
         # C-Level
         "Chief Information Officer",
@@ -135,11 +136,29 @@ def scrape_linkedin_senior_tech_roles(location: str = "Australia") -> list[dict]
         "Head of Engineering",
         "Head of Digital",
         
-        # GM & Senior Manager (NEW)
+        # GM & Senior Manager
         "General Manager Technology",
         "Senior Manager Technology",
         "Principal Engineer",
         "Principal Architect",
+        
+        # APAC & Global Roles
+        "APAC Technology",
+        "APAC IT",
+        "Global Technology",
+        "Global IT",
+
+        # Mandarin / China market roles
+        "Mandarin speaking",
+        "Mandarin required",
+        "China market",
+        "Greater China",
+        "China business development",
+        "APAC business development",
+        "APAC growth",
+        "APAC expansion",
+        "China strategy",
+        "Head of China",
     ]
     
     all_jobs = []
@@ -150,7 +169,7 @@ def scrape_linkedin_senior_tech_roles(location: str = "Australia") -> list[dict]
     for term in search_terms:
         print(f"  [LinkedIn] Searching: {term}")
         
-        # Fetch 4 pages instead of 2 (100 jobs per term instead of 50)
+        # Fetch 4 pages (100 jobs per term)
         for start in [0, 25, 50, 75]:
             try:
                 jobs = fetch_linkedin_jobs(term, location="Australia", start=start)
