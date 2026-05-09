@@ -2,12 +2,15 @@ name: JobRadar Daily Scraper
 
 on:
   schedule:
-    # 8:00 AM Melbourne time (AEDT = UTC+11) — 8 AM AEDT = 9 PM UTC prev day
+    # Runs at 8:00 AM Melbourne time (AEDT = UTC+11)
+    # 8 AM AEDT = 9 PM UTC (21:00)
+    # GitHub Actions can have 5-15 min delay, so this should run ~8:00-8:15 AM
     - cron: '0 21 * * *'
-    # 3:00 PM Melbourne time (AEDT = UTC+11) — 3 PM AEDT = 4 AM UTC
-    - cron: '0 4 * * *'
   
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   scrape:
@@ -54,3 +57,14 @@ jobs:
           path: |
             *.log
             **/*.log
+      
+      - name: Keepalive commit (prevents 60-day auto-disable)
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p .keepalive
+          date -u +"%Y-%m-%dT%H:%M:%SZ" > .keepalive/last-run.txt
+          git add .keepalive/last-run.txt
+          git diff --quiet --cached || git commit -m "chore: keepalive [skip ci]"
+          git push
